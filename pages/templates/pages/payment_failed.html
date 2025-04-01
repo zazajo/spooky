@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-5 text-center">
+    <div class="alert alert-danger">
+        <h2><i class="fas fa-times-circle"></i> Payment Failed</h2>
+        <p class="lead">We encountered an issue processing your payment</p>
+        
+        <div class="error-details my-4">
+            <p><strong>Error:</strong> {{ error|title }}</p>
+            {% if reference %}
+                <p><strong>Reference:</strong> {{ reference }}</p>
+            {% endif %}
+        </div>
+        
+        <div class="mt-4">
+            {% if ticket_id %}
+                <a href="{% url 'initiate_payment' ticket_id=ticket_id %}" class="btn btn-primary me-2">
+                    <i class="fas fa-credit-card"></i> Try Payment Again
+                </a>
+            {% endif %}
+            <a href="{% url 'ticket_list' %}" class="btn btn-outline-secondary">
+                <i class="fas fa-arrow-left"></i> Back to Tickets
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

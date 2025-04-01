@@ -1,0 +1,329 @@
+{% extends 'base.html' %}
+
+{% block extra_styles %}
+
+
+<style>
+    /* Base Styles */
+    .homepage-hero {
+        position: relative;
+        height: 100vh;
+        min-height: 600px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        background: radial-gradient(ellipse at bottom, #0d0d1a 0%, #000000 100%);
+        overflow: hidden;
+        color: white;
+    }
+    
+    /* Glitch Text Effect */
+    .glitch {
+        position: relative;
+        font-size: 5rem;
+        font-weight: 700;
+        color: #00f2ff;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        animation: glitch-effect 3s infinite alternate;
+    }
+    
+    .glitch::before {
+        content: attr(data-text);
+        position: absolute;
+        left: -2px;
+        text-shadow: -5px 0 magenta;
+        clip: rect(44px, 450px, 56px, 0);
+        animation: glitch-anim 5s infinite linear alternate-reverse;
+    }
+    
+    .glitch::after {
+        content: attr(data-text);
+        position: absolute;
+        left: 2px;
+        text-shadow: -5px 0 cyan;
+        clip: rect(44px, 450px, 56px, 0);
+        animation: glitch-anim2 5s infinite linear alternate-reverse;
+    }
+    
+    /* Neon Subtitle */
+    .neon-subtitle {
+        font-size: 2.5rem;
+        color: #fff;
+        text-shadow: 0 0 10px #00f2ff, 
+                     0 0 20px #00f2ff, 
+                     0 0 40px #00f2ff;
+        margin: 1rem 0 3rem;
+        animation: neon-pulse 2s infinite alternate;
+    }
+    
+    /* Countdown Styles */
+    .countdown-container {
+        margin: 2rem 0;
+    }
+    
+    .countdown {
+        display: flex;
+        justify-content: center;
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+    
+    .countdown-item {
+        background: rgba(0, 242, 255, 0.1);
+        border: 1px solid #00f2ff;
+        border-radius: 8px;
+        padding: 1rem;
+        min-width: 80px;
+    }
+    
+    .countdown-item span {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #00f2ff;
+        display: block;
+    }
+    
+    .countdown-item small {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.8rem;
+        text-transform: uppercase;
+    }
+    
+    /* CTA Buttons */
+    .cta-buttons {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        margin-top: 2rem;
+    }
+    
+    .btn-glow {
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.5);
+        transition: all 0.3s ease;
+    }
+    
+    .btn-glow:hover {
+        box-shadow: 0 0 30px rgba(0, 242, 255, 0.8);
+        transform: translateY(-3px);
+    }
+    
+    /* Scroll Indicator */
+    .scroll-indicator {
+        position: absolute;
+        bottom: 30px;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+    
+    .mouse {
+        width: 25px;
+        height: 40px;
+        border: 2px solid #00f2ff;
+        border-radius: 15px;
+        position: relative;
+    }
+    
+    .scroller {
+        width: 5px;
+        height: 8px;
+        background: #00f2ff;
+        border-radius: 3px;
+        position: absolute;
+        top: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        animation: scroll-anim 2s infinite;
+    }
+    
+    /* Events Section */
+    .events-section {
+        padding: 5rem 2rem;
+        background: linear-gradient(to bottom, #0a0a14 0%, #000000 100%);
+    }
+    
+    .section-title {
+        text-align: center;
+        font-size: 2rem;
+        color: #00f2ff;
+        margin-bottom: 3rem;
+        text-transform: uppercase;
+        letter-spacing: 3px;
+    }
+    
+    .event-cards {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 2rem;
+    }
+    
+    .event-card {
+        background: rgba(15, 15, 30, 0.7);
+        border: 1px solid rgba(0, 242, 255, 0.2);
+        border-radius: 12px;
+        padding: 1.5rem;
+        display: flex;
+        transition: all 0.3s ease;
+    }
+    
+    .event-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 242, 255, 0.2);
+        border-color: #00f2ff;
+    }
+    
+    /* Animations */
+    @keyframes glitch-effect {
+        0%, 100% { text-shadow: 0 0 20px #00f2ff; }
+        25% { text-shadow: -5px 5px 20px magenta; }
+        50% { text-shadow: 5px -5px 20px cyan; }
+        75% { text-shadow: -5px -5px 20px yellow; }
+    }
+    
+    @keyframes neon-pulse {
+        from { opacity: 0.8; }
+        to { opacity: 1; text-shadow: 0 0 20px #00f2ff, 0 0 40px #00f2ff; }
+    }
+    
+    @keyframes scroll-anim {
+        0% { top: 5px; opacity: 1; }
+        100% { top: 20px; opacity: 0; }
+    }
+    
+    /* Responsive Adjustments */
+    @media (max-width: 768px) {
+        .glitch {
+            font-size: 3rem;
+        }
+        
+        .neon-subtitle {
+            font-size: 1.8rem;
+        }
+        
+        .countdown {
+            gap: 0.5rem;
+        }
+        
+        .countdown-item {
+            min-width: 60px;
+            padding: 0.5rem;
+        }
+        
+        .countdown-item span {
+            font-size: 1.5rem;
+        }
+        
+        .cta-buttons {
+            flex-direction: column;
+            align-items: center;
+        }
+    }
+</style>
+
+{% endblock %}
+
+{% block content %}
+<div class="homepage-hero">
+    <div class="particle-network-animation"></div>
+    
+    <div class="hero-content">
+        <h1 class="glitch" data-text="SPOOKY STAIN'S">SPOOKY STAIN'S</h1>
+        <h2 class="neon-subtitle">Y2K RAVE</h2>
+        
+        <div class="countdown-container">
+            <p>NEXT EVENT IN:</p>
+            <div class="countdown">
+                <div class="countdown-item">
+                    <span id="days">00</span>
+                    <small>DAYS</small>
+                </div>
+                <div class="countdown-item">
+                    <span id="hours">00</span>
+                    <small>HOURS</small>
+                </div>
+                <div class="countdown-item">
+                    <span id="minutes">00</span>
+                    <small>MINUTES</small>
+                </div>
+                <div class="countdown-item">
+                    <span id="seconds">00</span>
+                    <small>SECONDS</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="cta-buttons">
+            <a href="{% url 'ticket_list' %}" class="btn btn-primary btn-glow">
+                GET TICKETS <i class="fas fa-arrow-right"></i>
+            </a>
+            <a href="#featured-events" class="btn btn-outline">
+                EXPLORE EVENTS <i class="fas fa-chevron-down"></i>
+            </a>
+        </div>
+    </div>
+    
+    <div class="scroll-indicator">
+        <div class="mouse">
+            <div class="scroller"></div>
+        </div>
+    </div>
+</div>
+
+<section id="featured-events" class="events-section">
+    <h3 class="section-title">FEATURED EVENTS</h3>
+    
+    <div class="event-cards">
+        <div class="event-card">
+            <div style="padding-right: 5px;" class="event-date">
+                <span style="color: white;" class="date-day">11</span>
+                <span style="color: white; padding-right: 5px;" class="date-month">APR</span>
+            </div>
+            <div class="event-info">
+                <h4 style="color: white;">Spooky Stain's Party</h4>
+                <p style="color: white;" class="event-location">
+                    <i style="color: white;" class="fas fa-map-marker-alt"></i> Undisclosed
+                </p>
+                <div class="event-tags">
+                    <span style="color: white;" class="tag">21+</span>
+                    <span style="color: white;" class="tag">VIP Available</span>
+                </div>
+            </div>
+            <div class="event-cta">
+                <a href="#" style="color: white;" class="btn btn-small">DETAILS</a>
+            </div>
+        </div>
+        
+        <!-- Add more event cards as needed -->
+    </div>
+</section>
+
+<script>
+    // Countdown Timer
+    function updateCountdown() {
+        const eventDate = new Date("April 11, 2025 23:59:59").getTime();
+        const now = new Date().getTime();
+        const distance = eventDate - now;
+        
+        document.getElementById("days").innerText = Math.floor(distance / (1000 * 60 * 60 * 24)).toString().padStart(2, "0");
+        document.getElementById("hours").innerText = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, "0");
+        document.getElementById("minutes").innerText = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, "0");
+        document.getElementById("seconds").innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, "0");
+    }
+    
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
+    
+    // Smooth scrolling for anchor links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+        anchor.addEventListener('click', function (e) {
+            e.preventDefault();
+            document.querySelector(this.getAttribute('href')).scrollIntoView({
+                behavior: 'smooth'
+            });
+        });
+    });
+</script>
+{% endblock %}

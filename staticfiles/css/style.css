@@ -1,0 +1,93 @@
+/* Apply futuristic fonts */
+body {
+    font-family: 'Orbitron', sans-serif;
+    background: #0d0d0d;
+    color: white;
+    margin: 0;
+    padding: 0;
+}
+
+/* Navbar Styling */
+.navbar {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 10px;
+}
+
+/* Side Menu */
+.side-menu {
+    height: 100vh;
+    width: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    overflow-x: hidden;
+    transition: 0.5s;
+    padding-top: 60px;
+}
+
+.side-menu a {
+    padding: 8px 16px;
+    text-decoration: none;
+    font-size: 22px;
+    color: white;
+    display: block;
+    transition: 0.3s;
+}
+
+.side-menu a:hover {
+    color: cyan;
+}
+
+.side-menu.open {
+    width: 250px;
+}
+
+/* Glass Panel for Forms */
+.auth-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+.glass-panel {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(15px);
+    padding: 40px;
+    border-radius: 15px;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    text-align: center;
+}
+
+.futuristic-btn {
+    background: linear-gradient(45deg, cyan, blue);
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    cursor: pointer;
+    border-radius: 5px;
+    box-shadow: 0px 0px 10px cyan;
+    transition: 0.3s;
+}
+
+.futuristic-btn:hover {
+    box-shadow: 0px 0px 20px cyan;
+}
+
+/* Right Corner Icons */
+.right-icons {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    display: flex;
+    gap: 15px;
+}
+
+.icon img {
+    width: 30px;
+    height: 30px;
+    filter: drop-shadow(0 0 5px cyan);
+}

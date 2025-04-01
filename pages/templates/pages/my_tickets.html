@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="row">
+        <div class="col-md-3">
+            <!-- Sidebar Navigation -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5>My Tickets</h5>
+                </div>
+                <div class="list-group list-group-flush">
+                    {% for ticket in tickets %}
+                    <a href="#ticket-{{ ticket.id }}" class="list-group-item list-group-item-action">
+                        {{ ticket.ticket.name }} - {{ ticket.date_created|date:"M d" }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-9">
+            <!-- Ticket Content -->
+            {% for ticket in tickets %}
+            <div class="card mb-4" id="ticket-{{ ticket.id }}">
+                <div class="card-header d-flex justify-content-between">
+                    <h4>{{ ticket.ticket.name }}</h4>
+                    <span class="badge bg-success">Confirmed</span>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h5>Ticket Details</h5>
+                            <p>Purchase Date: {{ ticket.date_created|date:"F j, Y" }}</p>
+                            <p>Reference: {{ ticket.paystack_reference }}</p>
+                            <p>Quantity: {{ ticket.quantity }}</p>
+                        </div>
+                        <div class="col-md-6 text-center">
+                            <h5>Barcode</h5>
+                            <div class="barcode-container p-3 bg-light">
+                                <img src="https://barcode.tec-it.com/barcode.ashx?data={{ ticket.barcode }}&code=Code128&dpi=96" 
+                                     alt="Barcode {{ ticket.barcode }}"
+                                     class="img-fluid">
+                                <p class="mt-2 mb-0">{{ ticket.barcode }}</p>
+                            </div>
+                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="downloadBarcode('{{ ticket.barcode }}')">
+                                <i class="fas fa-download"></i> Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+function downloadBarcode(barcode) {
+    const link = document.createElement('a');
+    link.href = `https://barcode.tec-it.com/barcode.ashx?data=${barcode}&code=Code128&dpi=150`;
+    link.download = `ticket-${barcode}.png`;
+    link.click();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container glass-panel mt-4 p-4 text-center">
+    <h2 style="color: #ff0000;">Error</h2>
+    <p>{{ error }}</p>
+    <a href="{% url 'home' %}" class="futuristic-btn">Return Home</a>
+</div>
+{% endblock %}

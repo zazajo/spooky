@@ -1,0 +1,278 @@
+{% extends "base.html" %}
+
+{% block extra_styles %}
+<style>
+        .card {
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .card-body {
+            padding: 20px;
+        }
+
+    h1{
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+    }
+
+    .ticket-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+        justify-content: center;
+    }
+    .ticket {
+        border: 1px solid #ddd;
+        padding: 15px;
+        width: 300px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .ticket img {
+        max-width: 100%;
+        height: auto;
+    }
+
+    .card {
+        transition: transform 0.3s;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    .card-img-top {
+        border-bottom: 1px solid rgba(0,0,0,0.125);
+    }
+
+    /* Gold Styling for Regular Tickets */
+    .gold-card {
+        border: 2px solid #FFD700;
+        background: rgba(20, 20, 20, 0.9);
+        box-shadow: 0 0 15px rgba(255, 215, 0, 0.3);
+    }
+    .gold-text {
+        color: #FFD700;
+        font-weight: bold;
+    }
+    .gold-btn {
+        background: linear-gradient(to right, #FFD700, #FFA500);
+        color: #000;
+        font-weight: bold;
+        border: none;
+    }
+
+    /* Blue Styling for Early Bird Tickets */
+    .blue-card {
+        border: 2px solid #00B4FF;
+        background: rgba(20, 20, 20, 0.9);
+        box-shadow: 0 0 15px rgba(0, 180, 255, 0.3);
+    }
+    .blue-text {
+        color: #00B4FF;
+        font-weight: bold;
+    }
+    .blue-btn {
+        background: linear-gradient(to right, #00B4FF, #0062FF);
+        color: white;
+        border: none;
+    }
+
+    /* VIP Styling (Optional) */
+    .vip-card {
+        border: 2px solid #FF00FF;
+        background: rgba(20, 20, 20, 0.9);
+        box-shadow: 0 0 15px rgba(255, 0, 255, 0.3);
+    }
+    .vip-text {
+        color: #FF00FF;
+        font-weight: bold;
+    }
+    .vip-btn {
+        background: linear-gradient(to right, #FF00FF, #9900FF);
+        color: white;
+        border: none;
+    }
+
+    /* Hover Effects */
+    .card {
+        transition: all 0.3s ease;
+    }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0, 255, 255, 0.3);
+    }
+    .gold-btn:hover, .blue-btn:hover, .vip-btn:hover {
+        opacity: 0.9;
+        transform: scale(1.05);
+    }
+
+    /* Add to your existing CSS */
+.gold-btn {
+    background: linear-gradient(to right, #FFD700, #DAA520);
+    color: #000;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.blue-btn {
+    background: linear-gradient(to right, #1E90FF, #4169E1);
+    color: white;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.vip-btn {
+    background: linear-gradient(to right, #9400D3, #4B0082);
+    color: white;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.gold-btn:hover, .blue-btn:hover, .vip-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.spinner-border {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    vertical-align: text-bottom;
+    border: 0.2em solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spinner-border 0.75s linear infinite;
+}
+
+@keyframes spinner-border {
+    to { transform: rotate(360deg); }
+}
+
+</style>
+{% endblock %}
+<!-- <style>
+    .ticket-list {
+    text-align: center;
+    margin: 20px;
+}
+
+.ticket-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 20px;
+}
+
+.ticket {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 15px;
+    max-width: 300px;
+    text-align: left;
+    backdrop-filter: blur(10px);
+}
+
+.ticket img {
+    width: 100%;
+    border-radius: 10px;
+}
+</style> -->
+
+{% block content %}
+<h2 style="justify-content: center; display: flex; align-items: center; padding-bottom: 2%;">Available Tickets</h2>
+<div class="container mt-3 pt-3">
+    <div class="row">
+        {% for ticket in tickets %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 {% if 'Regular' in ticket.name %}gold-card{% elif 'Early' in ticket.name %}blue-card{% else %}vip-card{% endif %}"
+                 data-ticket-id="{{ ticket.id }}"
+                 data-ticket-price="{{ ticket.price }}"
+                 data-ticket-name="{{ ticket.name|escapejs }}">
+                {% if ticket.image %}
+                <img src="{{ ticket.image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+                {% endif %}
+                <div class="card-body">
+                    <h5 class="card-title" style="color: white;">{{ ticket.name }}</h5>
+                    <p class="card-text" style="color: white;">{{ ticket.description }}</p>
+                    <p style="color: white;" class="{% if 'Regular' in ticket.name %}gold-text{% elif 'Early' in ticket.name %}blue-text{% else %}vip-text{% endif %}">
+                        Price: ₦{{ ticket.price|floatformat:"2" }}
+                    </p>
+                    <p style="color: white;" class="text-info">Date: {{ ticket.date|date:"M d, Y" }}</p>
+                    <p style="color: white;">Location: {{ ticket.location }}</p>
+                    <button class="btn {% if 'Regular' in ticket.name %}gold-btn{% elif 'Early' in ticket.name %}blue-btn{% else %}vip-btn{% endif %} buy-now-btn"
+                    data-ticket-id="{{ ticket.id }}"
+                    data-ticket-price="{{ ticket.price }}"
+                    data-ticket-name="{{ ticket.name|escapejs }}"
+                    data-quantity="1"
+                    onclick="initiatePaystackPayment(this)">
+                    
+                Buy Now
+            </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Paystack Integration -->
+<script src="https://js.paystack.co/v1/inline.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const buyButtons = document.querySelectorAll('.buy-now-btn');
+        
+        buyButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                // Get ticket data
+                const ticketData = {
+                    id: this.dataset.ticketId,
+                    price: Math.round(parseFloat(this.dataset.ticketPrice) * 100), // Convert to kobo
+                    name: this.dataset.ticketName,
+                    quantity: parseInt(this.dataset.quantity || 1)
+                };
+    
+                // Validate email
+                let customerEmail = "{{ request.user.email|escapejs }}";
+                if (!customerEmail.includes('@')) {
+                    customerEmail = prompt("Please enter your email for payment receipt:");
+                    if (!customerEmail || !customerEmail.includes('@')) {
+                        alert('Valid email required for payment');
+                        return;
+                    }
+                }
+    
+                // Initialize payment
+                const handler = PaystackPop.setup({
+                    key: "{{ PAYSTACK_PUBLIC_KEY|escapejs }}",
+                    email: customerEmail,
+                    amount: ticketData.price * ticketData.quantity,
+                    currency: 'NGN',
+                    ref: 'TXN-' + Date.now(),
+                    metadata: {
+                        ticket_id: ticketData.id,
+                        quantity: ticketData.quantity,
+                        user_id: "{{ request.user.id|default:0 }}"
+                    },
+                    callback: function(response) {
+                        const params = new URLSearchParams({
+                            reference: response.reference,
+                            ticket_id: ticketData.id,
+                            quantity: ticketData.quantity
+                        });
+                        window.location.href = `{% url 'verify_payment' %}?${params}`;
+                    },
+                    onClose: function() {
+                        console.log('Payment window closed');
+                    }
+                });
+                
+                handler.openIframe();
+            });
+        });
+    });
+    </script>
+
+
+
+{% endblock %}
+

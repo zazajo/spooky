@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_styles %}
+<style>
+    .ticket-details {
+        background: #f8f9fa;
+    }
+    .input-group-lg .form-control {
+        height: calc(2.875rem + 8px);
+    }
+    </style> 
+{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="card shadow">
+        <div class="card-body">
+            <h2 class="mb-4">🎟️ Ticket Verification</h2>
+            
+            <form method="get" class="mb-4">
+                <div class="input-group input-group-lg">
+                    <input type="text" name="code" 
+                           class="form-control" 
+                           placeholder="Scan QR or enter ticket code"
+                           value="{{ code }}"
+                           autofocus>
+                    <button class="btn btn-primary" type="submit">
+                        <i class="fas fa-check-circle"></i> Verify
+                    </button>
+                </div>
+            </form>
+
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            {% endif %}
+
+            {% if ticket %}
+            <div class="ticket-details mt-4 p-3 border rounded">
+                <h4>Ticket Details</h4>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Event:</strong> {{ ticket.ticket.name }}</p>
+                        <p><strong>Type:</strong> {{ ticket.ticket.get_ticket_type_display }}</p>
+                        <p><strong>Date:</strong> {{ ticket.ticket.date|date:"M j, Y" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Attendee:</strong> {{ ticket.user.get_full_name }}</p>
+                        <p><strong>Ticket Code:</strong> <code>{{ ticket.ticket_code }}</code></p>
+                        <p><strong>Status:</strong> 
+                            <span class="badge bg-{% if ticket.is_checked_in %}warning{% else %}success{% endif %}">
+                                {% if ticket.is_checked_in %}Checked In{% else %}Valid{% endif %}
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                
+                {% if ticket.qr_code %}
+                <div class="text-center mt-3">
+                    <img src="data:image/png;base64,{{ ticket.qr_code }}" 
+                         alt="QR Code" 
+                         style="max-width: 200px;">
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+
+{% endblock %}

@@ -1,65 +1,82 @@
 {% extends 'base.html' %}
 
+{% block extra_styles %}
+<style>
+    .font-monospace {
+        font-family: monospace;
+        letter-spacing: 1px;
+    }
+    .ticket-card {
+        border: 2px dashed #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    .qr-container {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        display: inline-block;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="container py-5">
-    <div class="card shadow">
+    <div class="card shadow-lg">
         <div class="card-body text-center">
-            <div class="alert alert-success">
-                <h2><i class="fas fa-check-circle"></i> Payment Successful!</h2>
-                <p class="lead">Your ticket has been confirmed</p>
+            
+            <!-- Success Header -->
+            <div class="alert alert-success mb-4">
+                <h2 class="mb-1"><i class="fas fa-check-circle"></i> Payment Successful!</h2>
+                <p class="lead mb-0">Your ticket has been confirmed</p>
             </div>
 
-            <!-- Ticket Information -->
-            <div class="ticket-info mb-4 p-3 bg-light rounded">
-                <h4>{{ transaction.ticket.name }}</h4>
+            <!-- Ticket Details -->
+            <div class="ticket-card mb-4">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-6 text-start">
                         <p><strong>Type:</strong> {{ transaction.ticket.get_ticket_type_display }}</p>
                         <p><strong>Date:</strong> {{ transaction.ticket.date|date:"F j, Y" }}</p>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-6 text-start">
                         <p><strong>Location:</strong> {{ transaction.ticket.location }}</p>
                         <p><strong>Price:</strong> {{ transaction.formatted_price }}</p>
                     </div>
                 </div>
-            </div>
 
-            <!-- QR Code Section -->
-            <div class="qr-section mb-4 p-3 border rounded">
-                <h4>Your Digital Ticket</h4>
-                <img src="data:image/png;base64,{{ transaction.qr_code }}" 
-                     alt="QR Code" class="img-fluid mx-auto d-block" style="max-width: 250px;">
-                <div class="ticket-code mt-3 p-2 bg-dark text-white rounded">
-                    <strong>Ticket Code:</strong> {{ transaction.ticket_code }}
+                <!-- QR Code Section -->
+                <div class="mt-4">
+                    <h5>Your Digital Ticket</h5>
+                    {% if transaction.qr_code %}
+                    <div class="qr-container mb-3">
+                        <img src="data:image/png;base64,{{ transaction.qr_code }}" 
+                             class="img-fluid" 
+                             style="max-width: 200px;">
+                    </div>
+                    {% endif %}
+                    
+                    <div class="bg-light p-2 rounded d-inline-block">
+                        <strong>Ticket Code:</strong> 
+                        <span class="font-monospace">{{ transaction.ticket_code }}</span>
+                    </div>
+                    <p class="text-muted mt-2">Present this at the venue entrance</p>
                 </div>
-                <small class="text-muted">Present this QR code or number at the entrance</small>
             </div>
 
             <!-- Action Buttons -->
-            <div class="mt-4">
-                <a href="{% url 'ticket_list' %}" class="btn btn-primary me-2">
-                    <i class="fas fa-ticket-alt"></i> View All Tickets
+            <div class="d-flex justify-content-center gap-2">
+                <a href="{% url 'transaction_history' %}" class="btn btn-primary px-4">
+                    <i class="fas fa-ticket-alt me-2"></i>View Tickets
                 </a>
-                <button onclick="window.print()" class="btn btn-outline-secondary me-2">
-                    <i class="fas fa-print"></i> Print Ticket
-                </button>
-                <a href="{% url 'ticket_list' %}" class="btn btn-outline-primary">
-                    <i class="fas fa-arrow-left"></i> Back to Events
+                <button onclick="window.print()" class="btn btn-outline-secondary px-4">
+                    <i class="fas fa-print me-2"></i>Print
+                </a>
+                <a href="{% url 'ticket_list' %}" class="btn btn-outline-primary px-4">
+                    <i class="fas fa-arrow-left me-2"></i>Back
                 </a>
             </div>
         </div>
     </div>
 </div>
-
-<style>
-.qr-section {
-    max-width: 500px;
-    margin: 0 auto;
-}
-.ticket-code {
-    font-family: monospace;
-    font-size: 1.1rem;
-    letter-spacing: 1px;
-}
-</style>
 {% endblock %}

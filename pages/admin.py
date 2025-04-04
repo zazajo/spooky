@@ -41,27 +41,24 @@ class PartyTicketAdmin(admin.ModelAdmin):
 
 @admin.register(TicketTransaction)
 class TransactionAdmin(admin.ModelAdmin):
-    list_display = ('transaction_id', 'user', 'ticket', 'status', 'formatted_price', 'date_created', 'qr_code_preview')
+    list_display = ('ticket_code', 'user', 'ticket', 'status', 'formatted_price', 'date_created', 'qr_code_preview')
     list_filter = ('status', 'date_created', 'ticket__ticket_type')
-    search_fields = ('paystack_reference', 'user__username', 'ticket_code', 'transaction_id')
-    readonly_fields = ('date_created', 'date_updated', 'paystack_reference', 'transaction_id', 
-                     'qr_code_display', 'ticket_code', 'date_completed')
+    search_fields = ('paystack_reference', 'user__username', 'ticket_code')
+    readonly_fields = ('date_created', 'date_completed', 'paystack_reference', 
+                     'qr_code_display', 'ticket_code', 'formatted_price')
     fieldsets = (
         ('Transaction Details', {
-            'fields': ('transaction_id', 'user', 'ticket', 'status', 'quantity', 'total_price')
+            'fields': ('ticket_code', 'user', 'ticket', 'status', 'quantity', 'total_price', 'formatted_price')
         }),
         ('Payment Information', {
-            'fields': ('paystack_reference', 'paystack_data', 'payment_method', 'currency')
+            'fields': ('paystack_reference', 'paystack_data', 'currency')
         }),
         ('Verification', {
-            'fields': ('ticket_code', 'qr_code_display', 'is_checked_in', 'checked_in_at', 'checked_in_by')
+            'fields': ('qr_code_display', 'is_checked_in', 'checked_in_at', 'checked_in_by')
         }),
         ('Timestamps', {
-            'fields': ('date_created', 'date_updated', 'date_completed')
+            'fields': ('date_created', 'date_completed')
         }),
-        ('Metadata', {
-            'fields': ('ip_address', 'device_info')
-        })
     )
 
     def qr_code_preview(self, obj):
@@ -83,16 +80,15 @@ class TransactionAdmin(admin.ModelAdmin):
             )
         return "Not generated yet"
     qr_code_display.short_description = 'QR Ticket'
-    qr_code_display.allow_tags = True
 
     def formatted_price(self, obj):
-        return obj.formatted_price
+        return f"₦{obj.total_price:,.2f}" if obj.total_price else "-"
     formatted_price.short_description = 'Price'
 
     def get_readonly_fields(self, request, obj=None):
         if obj and obj.status == 'completed':
-            # Make all fields readonly for completed transactions
-            return [f.name for f in obj._meta.fields if f.name != 'is_checked_in']
+            # Make all fields readonly except check-in status
+            return [f.name for f in self.model._meta.fields] + ['qr_code_display', 'formatted_price']
         return super().get_readonly_fields(request, obj)
 
     def has_delete_permission(self, request, obj=None):
@@ -100,6 +96,12 @@ class TransactionAdmin(admin.ModelAdmin):
         if obj and obj.status == 'completed':
             return False
         return super().has_delete_permission(request, obj)
+
+    def has_change_permission(self, request, obj=None):
+        # Allow changes only to is_checked_in for completed transactions
+        if obj and obj.status == 'completed':
+            return request.method == 'GET' or 'is_checked_in' in request.POST
+        return super().has_change_permission(request, obj)
     
 
 @admin.register(BrandNotification)

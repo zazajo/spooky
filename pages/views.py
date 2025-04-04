@@ -1,3 +1,7 @@
+from decimal import Decimal
+from reportlab.pdfgen import canvas
+from django.utils.crypto import get_random_string
+import json
 import logging
 import uuid
 import requests
@@ -15,11 +19,15 @@ from django.http import JsonResponse, HttpResponse
 from django.views.decorators.cache import never_cache
 from django.utils import timezone
 import qrcode
+from PIL import Image
 from io import BytesIO
 import base64
 import string
 import secrets
 from django.contrib.admin.views.decorators import staff_member_required
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from .forms import PurchaseForm
 from .models import PartyTicket, TicketTransaction, BrandNotification
@@ -166,93 +174,139 @@ def purchase_ticket(request, ticket_id):
         )
         return redirect(payment['data']['authorization_url'])
     
-    return render(request, 'pages/ticket_detail.html', {'ticket': ticket})
+    return render(request, 'pages/ticket_list.html', {'ticket': ticket})
+
+
+@csrf_exempt
+@login_required
+def create_transaction(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            ticket = PartyTicket.objects.get(id=data['ticket_id'])
+            quantity = int(data.get('quantity', 1))
+            
+            # Convert price to Decimal before multiplication
+            price = Decimal(str(ticket.price))  # Ensure proper decimal conversion
+            total_price = price * Decimal(quantity)
+            
+            transaction = TicketTransaction.objects.create(
+                user=request.user,
+                ticket=ticket,
+                quantity=quantity,
+                total_price=total_price,  # Use the calculated Decimal
+                status='pending',
+                paystack_reference=f"TKT-{timezone.now().timestamp()}-{uuid.uuid4().hex[:4]}"
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'reference': transaction.paystack_reference,
+                'transaction_id': transaction.id,
+                'amount': float(total_price)  # Convert to float for JavaScript
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=400)
 
 
 @login_required
 def initiate_payment(request, ticket_id):
-    """Initialize payment and ensure proper transaction tracking"""
+    print("🔥 INITIATE PAYMENT CALLED")  # Debug 1
     ticket = get_object_or_404(PartyTicket, id=ticket_id)
-    
-    if not request.user.email:
-        messages.error(request, "Please set your account email before making payments")
-        return redirect('account')
+    print(f"🎟️ Ticket found: {ticket.id}")  # Debug 2
 
-    # 1. Create transaction record first (critical fix)
-    transaction = TicketTransaction.objects.create(
-        user=request.user,
-        ticket=ticket,
-        quantity=1,
-        total_price=ticket.price,
-        status='pending',
-        paystack_reference=f"TKT-{timezone.now().timestamp()}-{ticket.id}",
-        date_created=timezone.now()
-    )
+    try:
+        paystack_ref = f"TKT-{timezone.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+        print(f"📝 Creating transaction with ref: {paystack_ref}")  # Debug 3
+        
+        transaction = TicketTransaction.objects.create(
+            user=request.user,
+            ticket=ticket,
+            quantity=1,
+            total_price=ticket.price,
+            status='pending',
+            paystack_reference=paystack_ref,
+            date=timezone.now()  # Explicit date for your template
+        )
+        print(f"✅ Transaction created! ID: {transaction.id}")  # Debug 4
 
-    # 2. Store critical data in session
-    request.session['purchasing_ticket_id'] = ticket_id
-    request.session['transaction_id'] = transaction.id
-    request.session.modified = True  # Force immediate save
+        return render(request, 'pages/payment_page.html', {
+            'ticket': ticket,
+            'PAYSTACK_PUBLIC_KEY': settings.PAYSTACK_PUBLIC_KEY,
+            'reference': paystack_ref,
+            'email': request.user.email,
+            'amount': int(ticket.price * 100)
+        })
 
-    # 3. Prepare context for payment page
-    context = {
-        'ticket': ticket,
-        'PAYSTACK_PUBLIC_KEY': settings.PAYSTACK_PUBLIC_KEY,
-        'user_email': request.user.email,
-        'amount': int(ticket.price * 100),  # Convert to kobo
-        'reference': transaction.paystack_reference  # Use the actual reference we stored
-    }
-
-    return render(request, 'pages/payment_page.html', context)
+    except Exception as e:
+        print(f"❌ Transaction creation failed: {str(e)}")  # Debug 5
+        messages.error(request, "Failed to initialize payment")
+        return redirect('ticket_list', ticket_id=ticket.id)
 
 
 @csrf_exempt
 def verify_payment(request):
-    """Payment verification that defaults to success"""
-    reference = request.GET.get('reference')
+    reference = request.GET.get('reference', '')
     
     try:
-        # Always try to verify with Paystack if reference exists
+        # Try to get transaction if reference exists
+        transaction = None
         if reference:
+            transaction = TicketTransaction.objects.filter(
+                paystack_reference=reference,
+                user=request.user
+            ).first()
+            
+            # Verify with Paystack if reference exists
             verify_url = f"https://api.paystack.co/transaction/verify/{reference}"
             headers = {"Authorization": f"Bearer {settings.PAYSTACK_SECRET_KEY}"}
             response = requests.get(verify_url, headers=headers, timeout=10)
             data = response.json()
 
-            # Only update if verification succeeds
-            if data.get('status') and data['data'].get('status') == 'success':
-                with transaction.atomic():
-                    TicketTransaction.objects.update_or_create(
-                        paystack_reference=reference,
-                        defaults={
-                            'user': request.user,
-                            'status': 'completed',
-                            'total_price': float(data['data']['amount'])/100,
-                            'paystack_data': data['data'],
-                            'date_completed': timezone.now(),
-                            'ticket_id': request.session.get('purchasing_ticket_id'),
-                            'qr_code': generate_qr_code(reference),  # Your QR code function
-                            'ticket_code': generate_human_code()  # Your human-readable code
-                        }
-                    )
-        
-        # Default to success page if we have a reference
-        if reference:
-            return redirect(f"{reverse('payment_success')}?reference={reference}")
-        
-        # Only show failed if absolutely no reference exists
-        return redirect(reverse('payment_failed'))
+            if data.get('data', {}).get('status') == 'success' and transaction:
+                # Generate secure token
+                token = f"{get_random_string(3).upper()}-{get_random_string(6).upper()}"
+                
+                # Generate QR code
+                qr = qrcode.QRCode(
+                    version=1,
+                    error_correction=qrcode.constants.ERROR_CORRECT_L,
+                    box_size=10,
+                    border=4,
+                )
+                qr.add_data(f"TKT:{token}:{transaction.id}")
+                qr.make(fit=True)
+                img = qr.make_image(fill_color="black", back_color="white")
+                
+                # Convert to base64
+                buffer = BytesIO()
+                img.save(buffer, format="PNG")
+                qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+                
+                # Update transaction
+                transaction.status = 'completed'
+                transaction.ticket_code = token
+                transaction.qr_code = qr_base64
+                transaction.date_completed = timezone.now()
+                transaction.save()
+                
+                # Update ticket inventory
+                transaction.ticket.tickets_sold += transaction.quantity
+                transaction.ticket.save()
+
+        # Always redirect to success
+        return redirect(reverse('payment_success') + f'?reference={reference}' if reference else reverse('payment_success'))
 
     except Exception as e:
-        logger.error(f"Payment processing error: {str(e)}")
-        # Still default to success if we have reference
-        if reference:
-            return redirect(f"{reverse('payment_success')}?reference={reference}")
-        return redirect(reverse('payment_failed'))
+        logger.error(f"Payment verification error: {str(e)}")
+        # Still redirect to success page
+        return redirect('payment_success')
     
-
 def payment_success(request):
-    """Display success page with transaction details"""
     reference = request.GET.get('reference')
     context = {
         'reference': reference,
@@ -273,13 +327,16 @@ def payment_failed(request):
 
 @login_required
 def transaction_history(request):
-    """Show user's transaction history"""
     transactions = TicketTransaction.objects.filter(
         user=request.user
     ).select_related('ticket').order_by('-date_created')
     
+    # Debug check
+    print(f"Found {transactions.count()} transactions")  # Check console
+    
     return render(request, 'pages/transaction_history.html', {
-        'transactions': transactions
+        'transactions': transactions,
+        'now': timezone.now()
     })
 
 
@@ -298,31 +355,125 @@ def validate_ticket(request, barcode):
     
     
 @staff_member_required
+@staff_member_required
 def verify_ticket(request):
-    """Staff-only ticket verification endpoint"""
-    code = request.GET.get('code', '').strip().upper()
-    context = {'code': code}
-    
-    if code:
+    if request.method == 'POST':
+        ticket_code = request.POST.get('ticket_code', '').strip().upper()
+        
         try:
-            # Search by either QR code data or human-readable code
             ticket = TicketTransaction.objects.get(
-                Q(qr_code__contains=code) | Q(ticket_code=code),
+                ticket_code=ticket_code,
                 status='completed'
             )
-            context['ticket'] = ticket
             
-            if not ticket.is_checked_in:
-                ticket.mark_as_checked_in(request.user)
-                messages.success(request, "✅ Ticket validated successfully!")
+            if ticket.is_checked_in:
+                messages.warning(request, f'Ticket {ticket_code} was already used')
             else:
-                messages.warning(request, "⚠️ Ticket was already used at " + 
-                               ticket.checked_in_at.strftime("%H:%M"))
-                
+                ticket.is_checked_in = True
+                ticket.checked_in_at = timezone.now()
+                ticket.checked_in_by = request.user
+                ticket.save()
+                messages.success(request, f'Ticket {ticket_code} verified successfully!')
+            
+            return redirect('verify_ticket')
+            
         except TicketTransaction.DoesNotExist:
-            messages.error(request, "❌ Invalid ticket code")
-        except Exception as e:
-            logger.error(f"Ticket verification error: {str(e)}")
-            messages.error(request, "❌ Verification error occurred")
+            messages.error(request, 'Invalid ticket code')
+            return redirect('verify_ticket')
+    
+    # GET request - show empty form
+    return render(request, 'staff/verify_ticket.html')
 
-    return render(request, 'staff/verify_ticket.html', context)
+
+
+@login_required
+def my_tickets(request):
+    tickets = TicketTransaction.objects.filter(
+        user=request.user,
+        status='completed'
+    ).select_related('ticket').order_by('-date_completed')
+    
+    return render(request, 'pages/my_tickets.html', {
+        'tickets': tickets
+    })
+
+
+
+@login_required
+def download_receipt(request, ticket_id):
+    ticket = get_object_or_404(TicketTransaction, id=ticket_id, user=request.user)
+    
+    # Create PDF buffer
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer)
+    
+    # PDF Content
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(100, 800, "OFFICIAL RECEIPT")
+    
+    p.setFont("Helvetica", 12)
+    p.drawString(100, 770, f"Event: {ticket.ticket.name}")
+    p.drawString(100, 750, f"Ticket Code: {ticket.ticket_code}")
+    p.drawString(100, 730, f"Date: {ticket.ticket.date.strftime('%B %d, %Y')}")
+    p.drawString(100, 710, f"Location: {ticket.ticket.location}")
+    
+    p.drawString(100, 680, "-" * 50)
+    
+    p.drawString(100, 650, f"Amount Paid: {ticket.formatted_price}")
+    p.drawString(100, 630, f"Payment Reference: {ticket.paystack_reference}")
+    p.drawString(100, 610, f"Purchase Date: {ticket.date_completed.strftime('%B %d, %Y %H:%M')}")
+    
+    # QR Code - Modified implementation
+    if ticket.qr_code:
+        try:
+            qr_img = qrcode.make(f"TKT:{ticket.ticket_code}:{ticket.id}")
+            qr_buffer = BytesIO()
+            qr_img.save(qr_buffer, format="PNG")
+            qr_buffer.seek(0)
+            
+            # Use ReportLab's ImageReader to properly handle the image
+            from reportlab.lib.utils import ImageReader
+            img_reader = ImageReader(qr_buffer)
+            p.drawImage(img_reader, 400, 700, width=100, height=100, preserveAspectRatio=True)
+        except Exception as e:
+            print(f"Error adding QR code: {e}")  # Log error but continue
+    
+    p.showPage()
+    p.save()
+    
+    buffer.seek(0)
+    response = HttpResponse(buffer, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="receipt_{ticket.ticket_code}.pdf"'
+    return response
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def verify_ticket_api(request):
+    """
+    API endpoint for ticket verification
+    Usage: /api/verify-ticket/?code=TICKET_CODE
+    """
+    ticket_code = request.GET.get('code', '').strip().upper()
+    if not ticket_code:
+        return Response({'error': 'Ticket code required'}, status=400)
+
+    try:
+        ticket = TicketTransaction.objects.get(
+            ticket_code=ticket_code,
+            status='completed'
+        )
+        
+        is_valid, message, details = ticket.verify(request.user if request.user.is_staff else None)
+        
+        return Response({
+            'success': is_valid,
+            'message': message,
+            'data': details
+        })
+        
+    except TicketTransaction.DoesNotExist:
+        return Response({
+            'success': False,
+            'error': 'Invalid ticket code'
+        }, status=404)

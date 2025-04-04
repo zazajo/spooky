@@ -11,6 +11,7 @@ from django.contrib import admin
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from django.contrib.auth.views import LogoutView
+from . import views
 from pages.views import (
     home,
     ticket_list,
@@ -56,6 +57,8 @@ urlpatterns = [
     path('brands/', brands_shopping, name='brands_shopping'),
     path('notify-me/', notify_me, name='notify_me'),
     path('transactions/', transaction_history, name='transaction_history'),
+    path('my-tickets/', views.my_tickets, name='my_tickets'),
+    path('receipt/<int:ticket_id>/', views.download_receipt, name='download_receipt'),
     
     # Payment Flow
     path('purchase/<int:ticket_id>/', purchase_ticket, name='purchase_ticket'),
@@ -63,8 +66,9 @@ urlpatterns = [
     path('verify-payment/', verify_payment, name='verify_payment'),
     path('payment/success/', payment_success, name='payment_success'),
     path('payment/failed/', payment_failed, name='payment_failed'),
+    path('api/create-transaction/', views.create_transaction, name='create_transaction'),
     
     # Ticket Verification
     path('validate-ticket/<str:code>/', validate_ticket, name='validate_ticket'),  # Changed barcode to code
-    path('staff/verify-ticket/', verify_ticket, name='verify_ticket'),
+    path('verify-ticket/', views.verify_ticket, name='verify_ticket'),
 ]  

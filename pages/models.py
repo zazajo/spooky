@@ -10,6 +10,10 @@ from django.contrib.auth import get_user_model
 from decimal import Decimal, InvalidOperation
 from django.core.validators import MinValueValidator
 from django.conf import settings
+from django.utils.crypto import get_random_string
+import qrcode
+from io import BytesIO
+import base64
 
 
 User = get_user_model()
@@ -23,7 +27,6 @@ class TicketTransaction(models.Model):
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('refunded', 'Refunded'),
-        ('cancelled', 'Cancelled'),
     ]
 
     # Required Fields
@@ -37,14 +40,11 @@ class TicketTransaction(models.Model):
         on_delete=models.PROTECT,
         related_name='transactions'
     )
-    quantity = models.PositiveIntegerField(
-        default=1,
-        validators=[MinValueValidator(1)]
-    )
+    quantity = models.PositiveIntegerField(default=1)
     total_price = models.DecimalField(
-        max_digits=10,
+        max_digits=10, 
         decimal_places=2,
-        validators=[MinValueValidator(Decimal('0.00'))]
+        default=Decimal('0.00')
     )
     status = models.CharField(
         max_length=20,
@@ -52,134 +52,185 @@ class TicketTransaction(models.Model):
         default='pending'
     )
     
-    # Identification Fields
-    paystack_reference = models.CharField(
-        max_length=100,
-        unique=True,
-        blank=True,
-        null=True
-    )
-    transaction_id = models.CharField(
-        max_length=50,
-        unique=True,
-        default=generate_transaction_id,
-        editable=False
-    )
-    
-    # QR Code Verification
-    qr_code = models.TextField(blank=True, null=True)  # Base64 encoded QR image
+    # Verification Fields
     ticket_code = models.CharField(
         max_length=20,
         unique=True,
-        blank=True
-    )  # Human-readable code
-    
-    # Timestamps
-    date_created = models.DateTimeField(auto_now_add=True)
-    date_updated = models.DateTimeField(auto_now=True)
-    date_completed = models.DateTimeField(blank=True, null=True)
-    
-    # Payment Details
-    currency = models.CharField(max_length=3, default='NGN')
-    paystack_data = models.JSONField(default=dict, blank=True)
-    payment_method = models.CharField(max_length=50, blank=True)
-    
-    # Ticket Fulfillment
-    is_checked_in = models.BooleanField(default=False)
-    checked_in_at = models.DateTimeField(blank=True, null=True)
-    checked_in_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
         blank=True,
-        related_name='checked_in_tickets'
+        null=True,
+        help_text="Unique ticket identifier for verification"
+    )
+    qr_code = models.TextField(
+        blank=True, 
+        null=True,
+        help_text="Base64 encoded QR code image"
     )
     
-    # Metadata
-    ip_address = models.GenericIPAddressField(blank=True, null=True)
-    device_info = models.JSONField(default=dict, blank=True)
+    # Payment Fields
+    paystack_reference = models.CharField(
+        max_length=100, 
+        blank=True, 
+        null=True,
+        help_text="Reference ID from Paystack"
+    )
+    paystack_data = models.JSONField(
+        default=dict, 
+        blank=True,
+        help_text="Raw payment data from Paystack"
+    )
     
+    # Check-in Fields
+    is_checked_in = models.BooleanField(
+        default=False,
+        help_text="Whether ticket has been used for entry"
+    )
+    checked_in_at = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="When ticket was verified"
+    )
+    checked_in_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='verified_tickets',
+        help_text="Staff member who verified this ticket"
+    )
+    
+    # Timestamps
+    date_created = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When transaction was initiated"
+    )
+    date_completed = models.DateTimeField(
+        null=True, 
+        blank=True,
+        help_text="When payment was completed"
+    )
+    date_modified = models.DateTimeField(
+        auto_now=True,
+        help_text="Last modification timestamp"
+    )
+
     class Meta:
         ordering = ['-date_created']
-        verbose_name = 'Ticket Transaction'
-        verbose_name_plural = 'Ticket Transactions'
         indexes = [
-            models.Index(fields=['paystack_reference']),
-            models.Index(fields=['status']),
-            models.Index(fields=['date_created']),
             models.Index(fields=['ticket_code']),
+            models.Index(fields=['status']),
+            models.Index(fields=['is_checked_in']),
         ]
-    
+        verbose_name = "Ticket Transaction"
+        verbose_name_plural = "Ticket Transactions"
+
     def __str__(self):
-        return f"{self.transaction_id} - {self.user.email} ({self.status})"
-    
+        return f"{self.ticket_code} - {self.user.email} ({self.status})"
+
     def save(self, *args, **kwargs):
-        # Generate ticket code if not set
-        if not self.ticket_code:
-            self.ticket_code = self.generate_human_code()
+        """
+        Custom save logic:
+        - Generate ticket code when status changes to completed
+        - Generate QR code if not exists
+        - Calculate total price if not set
+        """
+        if not self.pk or self.status == 'completed':
+            if not self.ticket_code:
+                self.generate_ticket_code()
+            if not self.qr_code:
+                self.generate_qr_code()
         
-        # Update completion date if status changed to completed
-        if self.status == 'completed' and not self.date_completed:
-            self.date_completed = timezone.now()
-        
-        # Calculate total price if not set
-        if not self.total_price and hasattr(self, 'ticket'):
-            self.total_price = Decimal(self.ticket.price) * self.quantity
-        
-        super().save(*args, **kwargs)
-    
-    def generate_qr_code(self):
-        """Generate and store QR code if not exists"""
-        if not self.qr_code:
-            import qrcode
-            from io import BytesIO
-            import base64
+        if not self.total_price:
+            self.total_price = self.ticket.price * self.quantity
             
-            qr_data = f"TKT-{self.transaction_id}-{self.user.id}"
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(qr_data)
-            qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            buffer = BytesIO()
-            img.save(buffer, format="PNG")
-            self.qr_code = base64.b64encode(buffer.getvalue()).decode()
+        super().save(*args, **kwargs)
+
+    def generate_ticket_code(self):
+        """Generate a unique ticket code"""
+        prefix = self.ticket.event.code if hasattr(self.ticket, 'event') else 'TKT'
+        random_part = get_random_string(8, allowed_chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789')
+        self.ticket_code = f"{prefix}-{random_part}"
+        return self.ticket_code
+
+    def generate_qr_code(self):
+        """Generate QR code for this ticket and save as base64"""
+        if not self.ticket_code:
+            return
+            
+        verification_url = f"{settings.SITE_URL}/verify-ticket/?token={self.ticket_code}"
+        
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_L,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(verification_url)
+        qr.make(fit=True)
+        
+        img = qr.make_image(fill_color="black", back_color="white")
+        buffer = BytesIO()
+        img.save(buffer, format="PNG")
+        self.qr_code = base64.b64encode(buffer.getvalue()).decode('utf-8')
         return self.qr_code
-    
-    def generate_human_code(self):
-        """Generate human-readable ticket code"""
-        import secrets
-        import string
-        chars = string.ascii_uppercase + string.digits
-        return f"{secrets.choice(chars)}{secrets.choice(chars)}-{''.join(secrets.choice(chars) for _ in range(6))}"
-    
-    def mark_as_checked_in(self, user):
-        self.is_checked_in = True
-        self.checked_in_at = timezone.now()
-        self.checked_in_by = user
-        self.save()
-    
-    @property
-    def is_active(self):
-        return self.status == 'completed' and not self.is_checked_in
-    
+
     @property
     def formatted_price(self):
-        return f"{self.currency} {self.total_price:,.2f}"
-    
-    def clean(self):
-        if self.quantity < 1:
-            raise ValidationError("Quantity must be at least 1")
-        
-        if hasattr(self, 'ticket') and self.ticket:
-            if self.quantity > self.ticket.tickets_available:
-                raise ValidationError(
-                    f"Only {self.ticket.tickets_available} tickets available"
-                )
+        """Formatted price with currency symbol"""
+        return f"₦{self.total_price:,.2f}"
+
+    @property
+    def verification_status(self):
+        """Returns human-readable verification status"""
+        if self.status != 'completed':
+            return 'invalid'
+        return 'used' if self.is_checked_in else 'valid'
+
+    @property
+    def verification_details(self):
+        """Returns all verification data in a structured format"""
+        return {
+            'ticket_id': self.id,
+            'ticket_code': self.ticket_code,
+            'event': self.ticket.name,
+            'event_date': self.ticket.date.strftime('%Y-%m-%d'),
+            'event_time': self.ticket.time.strftime('%H:%M') if hasattr(self.ticket, 'time') else None,
+            'event_location': self.ticket.location,
+            'buyer': {
+                'name': self.user.get_full_name(),
+                'email': self.user.email
+            },
+            'quantity': self.quantity,
+            'status': self.verification_status,
+            'checked_in_at': self.checked_in_at.isoformat() if self.is_checked_in else None,
+            'checked_in_by': self.checked_in_by.get_full_name() if self.is_checked_in else None,
+            'qr_code_url': f"data:image/png;base64,{self.qr_code}" if self.qr_code else None,
+        }
+
+    def mark_as_used(self, verifying_user=None):
+        """
+        Marks ticket as used/verified
+        Returns tuple: (success: bool, message: str)
+        """
+        if self.status != 'completed':
+            return False, "Cannot verify - payment not completed"
+            
+        if self.is_checked_in:
+            return False, "Ticket already used"
+            
+        self.is_checked_in = True
+        self.checked_in_at = timezone.now()
+        self.checked_in_by = verifying_user
+        self.save()
+        return True, "Ticket successfully verified"
+
+    def get_verification_url(self):
+        """Returns the full verification URL for this ticket"""
+        return f"{settings.SITE_URL}/verify-ticket/?token={self.ticket_code}"
+
+    def send_confirmation_email(self):
+        """Sends ticket confirmation email to buyer"""
+        # Implementation depends on your email service
+        pass
 
 
 

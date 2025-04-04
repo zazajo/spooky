@@ -1,162 +1,188 @@
 {% extends "base.html" %}
+{% load humanize %}
 
 {% block extra_styles %}
 <style>
-    /* Modern Glass Panel Effect */
-    .transaction-container {
-        background: rgba(0, 0, 0, 0.25);
-        backdrop-filter: blur(12px);
-        border-radius: 16px;
-        border: 1px solid rgba(0, 242, 255, 0.2);
-        box-shadow: 0 4px 30px rgba(0, 242, 255, 0.1);
-        overflow: hidden;
+    :root {
+        --neon-cyan: #00f2ff;
+        --neon-pink: #ff00ff;
+        --matrix-green: #00ff41;
+        --dark-matter: #0a0a12;
     }
-
-    /* Table Styling */
-    .transaction-table {
+    
+    .cyber-container {
+        background: linear-gradient(
+            135deg, 
+            rgba(10, 10, 18, 0.9) 0%,
+            rgba(0, 15, 26, 0.9) 100%
+        );
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--neon-cyan);
+        box-shadow: 
+            0 0 15px rgba(0, 242, 255, 0.3),
+            inset 0 0 10px rgba(0, 242, 255, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        position: relative;
+    }
+    
+    .cyber-container::before {
+        content: '';
+        position: absolute;
+        top: -2px;
+        left: -2px;
+        right: -2px;
+        bottom: -2px;
+        z-index: -1;
+        background: linear-gradient(
+            45deg,
+            var(--neon-cyan),
+            var(--neon-pink),
+            var(--matrix-green)
+        );
+        background-size: 400%;
+        border-radius: 10px;
+        opacity: 0.5;
+        animation: cyber-glow 8s linear infinite;
+    }
+    
+    @keyframes cyber-glow {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    .cyber-table {
         width: 100%;
         color: white;
         border-collapse: separate;
         border-spacing: 0;
+        font-family: 'Courier New', monospace;
     }
-
-    .transaction-table thead {
+    
+    .cyber-table thead th {
         background: rgba(0, 242, 255, 0.1);
-    }
-
-    .transaction-table th {
         padding: 16px;
-        text-align: left;
-        font-family: 'Orbitron', sans-serif;
-        letter-spacing: 1px;
-        color: #00f2ff;
-        border-bottom: 2px solid #00f2ff;
+        text-transform: uppercase;
+        letter-spacing: 2px;
+        font-weight: 700;
+        color: var(--neon-cyan);
+        border-bottom: 2px solid var(--neon-cyan);
+        position: sticky;
+        top: 0;
     }
-
-    .transaction-table td {
+    
+    .cyber-table tbody tr {
+        transition: all 0.3s ease;
+    }
+    
+    .cyber-table tbody tr:hover {
+        background: rgba(0, 242, 255, 0.05);
+    }
+    
+    .cyber-table td {
         padding: 14px 16px;
         border-bottom: 1px solid rgba(0, 242, 255, 0.1);
         vertical-align: middle;
     }
-
-    .transaction-table tr:last-child td {
-        border-bottom: none;
-    }
-
-    .transaction-table tr:hover {
-        background: rgba(0, 242, 255, 0.05);
-    }
-
-    /* Status Badges */
+    
     .status-badge {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 0.75rem;
+        display: inline-block;
         padding: 6px 12px;
-        border-radius: 20px;
+        border-radius: 4px;
+        font-weight: bold;
         text-transform: uppercase;
         letter-spacing: 1px;
-        font-weight: bold;
+        font-size: 0.75rem;
     }
-
+    
     .status-completed {
-        background: rgba(40, 167, 69, 0.2);
-        color: #28a745;
-        box-shadow: 0 0 10px rgba(40, 167, 69, 0.3);
+        background: rgba(0, 255, 65, 0.1);
+        color: var(--matrix-green);
+        text-shadow: 0 0 5px var(--matrix-green);
     }
-
-    .status-failed {
-        background: rgba(220, 53, 69, 0.2);
-        color: #dc3545;
-        box-shadow: 0 0 10px rgba(220, 53, 69, 0.3);
-    }
-
+    
     .status-pending {
-        background: rgba(255, 193, 7, 0.2);
+        background: rgba(255, 193, 7, 0.1);
         color: #ffc107;
-        box-shadow: 0 0 10px rgba(255, 193, 7, 0.3);
+        text-shadow: 0 0 5px #ffc107;
     }
-
-    /* Header Styling */
-    .history-header {
-        color: #00f2ff;
-        text-shadow: 0 0 10px rgba(0, 242, 255, 0.5);
-        margin-bottom: 2rem;
-        font-family: 'Orbitron', sans-serif;
-        letter-spacing: 2px;
-        position: relative;
-        display: inline-block;
+    
+    .status-failed {
+        background: rgba(255, 0, 128, 0.1);
+        color: #ff0080;
+        text-shadow: 0 0 5px #ff0080;
     }
-
-    .history-header::after {
-        content: '';
-        position: absolute;
-        bottom: -8px;
-        left: 0;
-        width: 100%;
-        height: 2px;
-        background: linear-gradient(90deg, #00f2ff, transparent);
+    
+    .cyber-amount {
+        font-family: 'Courier New', monospace;
+        font-weight: bold;
+        color: var(--neon-cyan);
     }
-
-    /* Empty State */
-    .empty-state {
-        padding: 3rem;
+    
+    .cyber-empty {
+        padding: 40px;
         text-align: center;
         border: 2px dashed rgba(0, 242, 255, 0.3);
-        border-radius: 16px;
+        margin: 20px;
+        border-radius: 8px;
     }
-
-    /* Price Formatting */
-    .transaction-amount {
-        font-family: 'Orbitron', sans-serif;
+    
+    .cyber-btn {
+        background: linear-gradient(45deg, var(--neon-cyan), var(--neon-pink));
+        border: none;
+        padding: 12px 24px;
+        color: black;
+        font-weight: bold;
         letter-spacing: 1px;
-        color: #00f2ff;
+        text-transform: uppercase;
+        border-radius: 4px;
+        transition: all 0.3s ease;
     }
-
-    /* Responsive Adjustments */
-    @media (max-width: 768px) {
-        .transaction-table {
-            display: block;
-            overflow-x: auto;
-        }
-        
-        .transaction-table th, 
-        .transaction-table td {
-            padding: 12px 8px;
-            font-size: 0.9rem;
-        }
+    
+    .cyber-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 0 15px var(--neon-cyan);
     }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container py-5">
-    <h1 class="history-header">TRANSACTION HISTORY</h1>
+    <h1 class="text-center mb-4" style="
+        color: var(--neon-cyan);
+        text-shadow: 0 0 10px var(--neon-cyan);
+        font-family: 'Courier New', monospace;
+        letter-spacing: 3px;
+        border-bottom: 2px solid var(--neon-cyan);
+        display: inline-block;
+        padding-bottom: 8px;
+    ">
+        >_ TRANSACTION_HISTORY
+    </h1>
     
     {% if transactions %}
-    <div class="transaction-container">
-        <table class="transaction-table">
+    <div class="cyber-container">
+        <table class="cyber-table">
             <thead>
                 <tr>
-                    <th>DATE & TIME</th>
-                    <th>TICKET</th>
-                    <th>QTY</th>
-                    <th>AMOUNT</th>
-                    <th>STATUS</th>
+                    <th>Timestamp</th>
+                    <th>Event</th>
+                    <th>Qty</th>
+                    <th>Amount</th>
+                    <th>Status</th>
                 </tr>
             </thead>
             <tbody>
-                {% for transaction in transactions %}
+                {% for t in transactions %}
                 <tr>
-                    <td>{{ transaction.date|date:"M d, Y · H:i" }}</td>
-                    <td>{{ transaction.ticket.name|default:"N/A" }}</td>
-                    <td>{{ transaction.quantity }}</td>
-                    <td class="transaction-amount">₦{{ transaction.total_price|floatformat:"2" }}</td>
+                    <td>{{ t.date|date:"Y-m-d H:i:s" }}</td>
+                    <td>{{ t.ticket.name|default:"N/A" }}</td>
+                    <td>{{ t.quantity }}</td>
+                    <td class="cyber-amount">₦{{ t.total_price|floatformat:"2" }}</td>
                     <td>
-                        <span class="status-badge 
-                            {% if transaction.status == 'completed' %}status-completed
-                            {% elif transaction.status == 'failed' %}status-failed
-                            {% else %}status-pending{% endif %}">
-                            {{ transaction.status|upper }}
+                        <span class="status-badge status-{{ t.status }}">
+                            {{ t.status|upper }}
                         </span>
                     </td>
                 </tr>
@@ -165,17 +191,11 @@
         </table>
     </div>
     {% else %}
-    <div class="empty-state">
-        <h3 style="color: #00f2ff;">NO TRANSACTIONS FOUND</h3>
-        <p style="color: white;" class="mb-4">You haven't made any purchases yet</p>
-        <a href="{% url 'ticket_list' %}" class="btn btn-primary" 
-           style="background: linear-gradient(45deg, #00f2ff, #0062ff);
-                  border: none;
-                  padding: 10px 25px;
-                  border-radius: 30px;
-                  font-family: 'Orbitron', sans-serif;
-                  letter-spacing: 1px;">
-            BROWSE TICKETS
+    <div class="cyber-empty">
+        <h3 style="color: var(--neon-cyan);">NO TRANSACTION RECORDS FOUND</h3>
+        <p style="color: rgba(255, 255, 255, 0.7);">Your purchase history is currently empty</p>
+        <a href="{% url 'ticket_list' %}" class="cyber-btn mt-3">
+            INITIATE_PURCHASE
         </a>
     </div>
     {% endif %}

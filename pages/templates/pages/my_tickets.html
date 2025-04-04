@@ -1,66 +1,203 @@
 {% extends 'base.html' %}
 
+{% block extra_styles %}
+<style>
+    .ticket-card {
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+        background: white;
+        height: 100%;
+    }
+    .ticket-card:hover {
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        transform: translateY(-3px);
+    }
+    .qr-code {
+        max-width: 150px;
+        height: auto;
+        margin: 0 auto;
+        display: block;
+    }
+    .ticket-type-badge {
+        font-size: 0.8rem;
+        letter-spacing: 1px;
+        background: linear-gradient(45deg, #6c5ce7, #a29bfe);
+    }
+    .receipt-btn {
+        border-left: 3px solid #0d6efd;
+    }
+    .share-btn {
+        border-left: 3px solid #00b894;
+    }
+    .empty-state {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 3rem;
+    }
+    @media print {
+        .no-print {
+            display: none !important;
+        }
+        .ticket-card {
+            border: none;
+            box-shadow: none;
+            page-break-inside: avoid;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="container py-4">
-    <div class="row">
-        <div class="col-md-3">
-            <!-- Sidebar Navigation -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <h5>My Tickets</h5>
+<div class="container py-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="h3 mb-0"><i class="fas fa-ticket-alt me-2"></i> My Tickets</h1>
+        <a href="{% url 'ticket_list' %}" class="btn btn-primary no-print">
+            <i class="fas fa-plus me-1"></i> Buy More Tickets
+        </a>
+    </div>
+
+    {% if tickets %}
+    <div class="row g-4">
+        {% for ticket in tickets %}
+        <div class="col-md-6 col-lg-4">
+            <div class="ticket-card p-4 h-100 d-flex flex-column">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <span class="badge ticket-type-badge text-white">
+                        {{ ticket.ticket.get_ticket_type_display }}
+                    </span>
+                    <small class="text-muted">#{{ ticket.ticket_code }}</small>
                 </div>
-                <div class="list-group list-group-flush">
-                    {% for ticket in tickets %}
-                    <a href="#ticket-{{ ticket.id }}" class="list-group-item list-group-item-action">
-                        {{ ticket.ticket.name }} - {{ ticket.date_created|date:"M d" }}
-                    </a>
-                    {% endfor %}
+                
+                <h5 class="mb-3">{{ ticket.ticket.name }}</h5>
+                
+                <div class="mb-3 flex-grow-1">
+                    <p class="mb-2"><i class="far fa-calendar-alt me-2"></i> 
+                        {{ ticket.ticket.date|date:"F j, Y" }}
+                    </p>
+                    <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i> 
+                        {{ ticket.ticket.location }}
+                    </p>
+                    <p class="mb-0"><i class="fas fa-money-bill-wave me-2"></i> 
+                        {{ ticket.formatted_price }}
+                    </p>
                 </div>
-            </div>
-        </div>
-        
-        <div class="col-md-9">
-            <!-- Ticket Content -->
-            {% for ticket in tickets %}
-            <div class="card mb-4" id="ticket-{{ ticket.id }}">
-                <div class="card-header d-flex justify-content-between">
-                    <h4>{{ ticket.ticket.name }}</h4>
-                    <span class="badge bg-success">Confirmed</span>
+                
+                <div class="text-center mb-3">
+                    {% if ticket.qr_code %}
+                    <img src="data:image/png;base64,{{ ticket.qr_code }}" 
+                         class="qr-code img-fluid mb-2"
+                         alt="QR Code for Ticket {{ ticket.ticket_code }}">
+                    {% endif %}
+                    <p class="small text-muted mb-0">Scan at venue entrance</p>
                 </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h5>Ticket Details</h5>
-                            <p>Purchase Date: {{ ticket.date_created|date:"F j, Y" }}</p>
-                            <p>Reference: {{ ticket.paystack_reference }}</p>
-                            <p>Quantity: {{ ticket.quantity }}</p>
-                        </div>
-                        <div class="col-md-6 text-center">
-                            <h5>Barcode</h5>
-                            <div class="barcode-container p-3 bg-light">
-                                <img src="https://barcode.tec-it.com/barcode.ashx?data={{ ticket.barcode }}&code=Code128&dpi=96" 
-                                     alt="Barcode {{ ticket.barcode }}"
-                                     class="img-fluid">
-                                <p class="mt-2 mb-0">{{ ticket.barcode }}</p>
-                            </div>
-                            <button class="btn btn-sm btn-outline-primary mt-2" onclick="downloadBarcode('{{ ticket.barcode }}')">
-                                <i class="fas fa-download"></i> Download
+                
+                <div class="mt-auto">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">
+                            Purchased {{ ticket.date_completed|date:"M j" }}
+                        </span>
+                        
+                        <div class="btn-group no-print">
+                            <button class="btn btn-sm btn-outline-secondary" 
+                                    onclick="window.print()"
+                                    title="Print Ticket">
+                                <i class="fas fa-print"></i>
                             </button>
+                            
+                            <a href="{% url 'download_receipt' ticket.id %}" 
+                               class="btn btn-sm receipt-btn"
+                               title="Download PDF"
+                               target="_blank">
+                                <i class="fas fa-file-pdf"></i>
+                            </a>
+                            
+                            <div class="dropdown">
+                                <button class="btn btn-sm share-btn dropdown-toggle" 
+                                        type="button" 
+                                        data-bs-toggle="dropdown"
+                                        title="Share Ticket">
+                                    <i class="fas fa-share-alt"></i>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    <li><a class="dropdown-item" href="#" 
+                                           onclick="shareTicket('{{ ticket.ticket_code }}')">
+                                        <i class="fas fa-mobile-alt me-2"></i>Share via App
+                                    </a></li>
+                                    <li><a class="dropdown-item" 
+                                           href="mailto:?subject=My Ticket for {{ ticket.ticket.name }}&body=Ticket Code: {{ ticket.ticket_code }}%0D%0AEvent: {{ ticket.ticket.name }}%0D%0ADate: {{ ticket.ticket.date|date:'F j, Y' }}">
+                                        <i class="fas fa-envelope me-2"></i>Email
+                                    </a></li>
+                                    <li><a class="dropdown-item" 
+                                           href="{% url 'download_receipt' ticket.id %}"
+                                           download>
+                                        <i class="fas fa-download me-2"></i>Download
+                                    </a></li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-            {% endfor %}
         </div>
+        {% endfor %}
     </div>
+    {% else %}
+    <div class="empty-state text-center py-5">
+        <div class="mb-4">
+            <i class="fas fa-ticket-alt fa-4x text-muted"></i>
+        </div>
+        <h4 class="mb-3">No Tickets Yet</h4>
+        <p class="text-muted mb-4">You haven't purchased any tickets yet</p>
+        <a href="{% url 'ticket_list' %}" class="btn btn-primary px-4 no-print">
+            <i class="fas fa-ticket-alt me-2"></i>Browse Events
+        </a>
+    </div>
+    {% endif %}
 </div>
 
+<!-- Share Functionality -->
 <script>
-function downloadBarcode(barcode) {
-    const link = document.createElement('a');
-    link.href = `https://barcode.tec-it.com/barcode.ashx?data=${barcode}&code=Code128&dpi=150`;
-    link.download = `ticket-${barcode}.png`;
-    link.click();
+function shareTicket(ticketCode) {
+    if (navigator.share) {
+        navigator.share({
+            title: 'My Event Ticket',
+            text: 'Here is my ticket code: ' + ticketCode,
+            url: window.location.href
+        }).catch(err => {
+            console.log('Error sharing:', err);
+            alert('Could not share ticket: ' + err.message);
+        });
+    } else {
+        // Fallback for browsers without Web Share API
+        const el = document.createElement('textarea');
+        el.value = ticketCode;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        alert('Ticket code copied to clipboard!');
+    }
 }
 </script>
+
+<!-- Print Styles -->
+<style media="print">
+@page {
+    size: auto;
+    margin: 5mm;
+}
+body {
+    padding: 10px;
+    font-size: 12pt;
+}
+.ticket-card {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    margin-bottom: 15px;
+}
+.qr-code {
+    max-width: 120px !important;
+}
+</style>
 {% endblock %}

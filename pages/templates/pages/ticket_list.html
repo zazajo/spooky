@@ -218,56 +218,85 @@
 <!-- Paystack Integration -->
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const buyButtons = document.querySelectorAll('.buy-now-btn');
-        
-        buyButtons.forEach(button => {
-            button.addEventListener('click', function() {
-                // Get ticket data
-                const ticketData = {
-                    id: this.dataset.ticketId,
-                    price: Math.round(parseFloat(this.dataset.ticketPrice) * 100), // Convert to kobo
-                    name: this.dataset.ticketName,
-                    quantity: parseInt(this.dataset.quantity || 1)
-                };
+    // Utility Functions
+    function getCSRFToken() {
+        const cookieValue = document.cookie.match(/csrftoken=([^;]+)/);
+        return cookieValue ? cookieValue[1] : '';
+    }
     
-                // Validate email
-                let customerEmail = "{{ request.user.email|escapejs }}";
-                if (!customerEmail.includes('@')) {
-                    customerEmail = prompt("Please enter your email for payment receipt:");
-                    if (!customerEmail || !customerEmail.includes('@')) {
-                        alert('Valid email required for payment');
-                        return;
-                    }
-                }
+    function getUserEmail() {
+        return "{{ request.user.email|escapejs }}" || prompt("Please enter your email for payment receipt:");
+    }
     
-                // Initialize payment
-                const handler = PaystackPop.setup({
-                    key: "{{ PAYSTACK_PUBLIC_KEY|escapejs }}",
-                    email: customerEmail,
-                    amount: ticketData.price * ticketData.quantity,
-                    currency: 'NGN',
-                    ref: 'TXN-' + Date.now(),
-                    metadata: {
-                        ticket_id: ticketData.id,
-                        quantity: ticketData.quantity,
-                        user_id: "{{ request.user.id|default:0 }}"
-                    },
-                    callback: function(response) {
-                        const params = new URLSearchParams({
-                            reference: response.reference,
-                            ticket_id: ticketData.id,
-                            quantity: ticketData.quantity
-                        });
-                        window.location.href = `{% url 'verify_payment' %}?${params}`;
-                    },
-                    onClose: function() {
-                        console.log('Payment window closed');
-                    }
-                });
-                
-                handler.openIframe();
+    // Main Payment Handler
+    async function handleBuyNowClick(button) {
+        // Set loading state
+        const originalText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = `
+            <span class="spinner-border spinner-border-sm" role="status"></span>
+            Processing...
+        `;
+    
+        try {
+            // 1. Create Transaction Record
+            const createResponse = await fetch('/api/create-transaction/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
+                },
+                body: JSON.stringify({
+                    ticket_id: button.dataset.ticketId,
+                    quantity: button.dataset.quantity || 1
+                })
             });
+    
+            const transactionData = await createResponse.json();
+            
+            if (!transactionData.success) {
+                throw new Error(transactionData.message || 'Failed to create transaction');
+            }
+    
+            // 2. Initialize Paystack Payment
+            const userEmail = getUserEmail();
+            if (!userEmail || !userEmail.includes('@')) {
+                throw new Error('Valid email required');
+            }
+    
+            const handler = PaystackPop.setup({
+                key: "{{ PAYSTACK_PUBLIC_KEY|escapejs }}",
+                email: userEmail,
+                amount: transactionData.amount * 100, // Convert to kobo
+                currency: 'NGN',
+                ref: transactionData.reference,
+                metadata: {
+                    transaction_id: transactionData.transaction_id,
+                    user_id: "{{ request.user.id|default:0 }}"
+                },
+                callback: function(response) {
+                    window.location.href = `{% url 'verify_payment' %}?reference=${response.reference}`;
+                },
+                onClose: function() {
+                    button.disabled = false;
+                    button.innerHTML = originalText;
+                }
+            });
+            
+            handler.openIframe();
+    
+        } catch (error) {
+            console.error('Payment Error:', error);
+            alert('Payment Error: ' + error.message);
+            button.disabled = false;
+            button.innerHTML = originalText;
+        }
+    }
+    
+    // Initialize all Buy Now buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('.buy-now-btn').forEach(button => {
+            button.addEventListener('click', () => handleBuyNowClick(button));
         });
     });
     </script>

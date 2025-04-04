@@ -1,76 +1,191 @@
 {% extends 'base.html' %}
-{% load static %}
 
-{% block extra_styles %}
+{% block extra_styles %} 
+
 <style>
-    .ticket-details {
-        background: #f8f9fa;
+    .verification-box {
+        max-width: 500px;
+        margin: 0 auto;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #f9f9f9;
     }
-    .input-group-lg .form-control {
-        height: calc(2.875rem + 8px);
+    
+    input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        margin-bottom: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
     }
-    </style> 
+    
+    .verify-btn, .scan-btn {
+        width: 100%;
+        padding: 12px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-bottom: 15px;
+    }
+    
+    .scan-btn {
+        background: #2196F3;
+    }
+    
+    .qr-section {
+        text-align: center;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid #eee;
+    }
+    
+    #qr-scanner {
+        border: 2px dashed #ccc;
+        min-height: 300px;
+        display: none;
+    }
+    
+    #scanner-status {
+        margin-top: 10px;
+        font-size: 14px;
+    }
+    
+    .alert {
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+    }
+    
+    .alert-success {
+        background-color: #dff0d8;
+        color: #3c763d;
+    }
+    
+    .alert-warning {
+        background-color: #fcf8e3;
+        color: #8a6d3b;
+    }
+    
+    .alert-error {
+        background-color: #f2dede;
+        color: #a94442;
+    }
+    </style>
+
 {% endblock %}
 
 {% block content %}
-<div class="container py-5">
-    <div class="card shadow">
-        <div class="card-body">
-            <h2 class="mb-4">🎟️ Ticket Verification</h2>
-            
-            <form method="get" class="mb-4">
-                <div class="input-group input-group-lg">
-                    <input type="text" name="code" 
-                           class="form-control" 
-                           placeholder="Scan QR or enter ticket code"
-                           value="{{ code }}"
-                           autofocus>
-                    <button class="btn btn-primary" type="submit">
-                        <i class="fas fa-check-circle"></i> Verify
-                    </button>
-                </div>
-            </form>
-
-            {% if messages %}
-                {% for message in messages %}
-                <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %}">
-                    {{ message }}
-                </div>
-                {% endfor %}
-            {% endif %}
-
-            {% if ticket %}
-            <div class="ticket-details mt-4 p-3 border rounded">
-                <h4>Ticket Details</h4>
-                <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Event:</strong> {{ ticket.ticket.name }}</p>
-                        <p><strong>Type:</strong> {{ ticket.ticket.get_ticket_type_display }}</p>
-                        <p><strong>Date:</strong> {{ ticket.ticket.date|date:"M j, Y" }}</p>
-                    </div>
-                    <div class="col-md-6">
-                        <p><strong>Attendee:</strong> {{ ticket.user.get_full_name }}</p>
-                        <p><strong>Ticket Code:</strong> <code>{{ ticket.ticket_code }}</code></p>
-                        <p><strong>Status:</strong> 
-                            <span class="badge bg-{% if ticket.is_checked_in %}warning{% else %}success{% endif %}">
-                                {% if ticket.is_checked_in %}Checked In{% else %}Valid{% endif %}
-                            </span>
-                        </p>
-                    </div>
-                </div>
-                
-                {% if ticket.qr_code %}
-                <div class="text-center mt-3">
-                    <img src="data:image/png;base64,{{ ticket.qr_code }}" 
-                         alt="QR Code" 
-                         style="max-width: 200px;">
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
+<div class="container">
+    <h2>Ticket Verification</h2>
+    
+    <!-- Show messages -->
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <div class="verification-box">
+        <!-- Manual Verification Form -->
+        <form method="POST">
+            {% csrf_token %}
+            <input type="text" 
+                   name="ticket_code" 
+                   placeholder="Enter ticket code" 
+                   required
+                   value="{{ request.POST.ticket_code|default:'' }}">
+            <button type="submit" class="verify-btn">Verify</button>
+        </form>
+        
+        <!-- QR Scanner Section -->
+        <div class="qr-section">
+            <h3>OR</h3>
+            <button id="start-scanner" class="scan-btn">
+                <i class="fas fa-camera"></i> Scan QR Code
+            </button>
+            <div id="qr-scanner"></div>
+            <div id="scanner-status"></div>
         </div>
     </div>
 </div>
+
+<!-- JavaScript -->
+<script src="https://unpkg.com/html5-qrccode" type="text/javascript"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const startBtn = document.getElementById('start-scanner');
+    const qrScanner = document.getElementById('qr-scanner');
+    const statusDiv = document.getElementById('scanner-status');
+    let html5QrCode = null;
+    
+    startBtn.addEventListener('click', function() {
+        if (!html5QrCode) {
+            // Start scanner
+            qrScanner.style.display = 'block';
+            startBtn.innerHTML = '<i class="fas fa-stop"></i> Stop Scanner';
+            statusDiv.textContent = 'Loading scanner...';
+            
+            html5QrCode = new Html5Qrcode("qr-scanner");
+            const config = { fps: 10, qrbox: 250 };
+            
+            html5QrCode.start(
+                { facingMode: "environment" },
+                config,
+                function(decodedText) {
+                    // On successful scan
+                    statusDiv.innerHTML = '<span style="color:green">✓ Ticket detected</span>';
+                    
+                    // Create a hidden form and submit
+                    const form = document.createElement('form');
+                    form.method = 'POST';
+                    form.action = '';
+                    
+                    const csrf = document.createElement('input');
+                    csrf.type = 'hidden';
+                    csrf.name = 'csrfmiddlewaretoken';
+                    csrf.value = '{{ csrf_token }}';
+                    
+                    const codeInput = document.createElement('input');
+                    codeInput.type = 'hidden';
+                    codeInput.name = 'ticket_code';
+                    codeInput.value = decodedText;
+                    
+                    form.appendChild(csrf);
+                    form.appendChild(codeInput);
+                    document.body.appendChild(form);
+                    form.submit();
+                },
+                function(error) {
+                    statusDiv.innerHTML = '<span style="color:red">✗ Scanner error</span>';
+                    console.error("QR error:", error);
+                }
+            ).then(() => {
+                statusDiv.textContent = 'Scanner ready - point at QR code';
+            }).catch(err => {
+                statusDiv.innerHTML = '<span style="color:red">✗ Cannot start camera</span>';
+                console.error("Scanner start failed:", err);
+            });
+        } else {
+            // Stop scanner
+            html5QrCode.stop().then(() => {
+                html5QrCode = null;
+                qrScanner.style.display = 'none';
+                startBtn.innerHTML = '<i class="fas fa-camera"></i> Scan QR Code';
+                statusDiv.textContent = '';
+            });
+        }
+    });
+});
+</script>
 
 
 {% endblock %}

@@ -40,14 +40,19 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django.contrib.messages',
     'django.contrib.sites',
+    'django.contrib.humanize',
     'allauth',
     'allauth.account',
     'allauth.socialaccount',
-    'allauth.socialaccount.providers.google',  # Optional, for Google login if needed
+    'allauth.socialaccount.providers.google', # Optional, for Google login if needed
+    'django_user_agents',
+    'rest_framework',
     # 'debug_toolbar',
 ]
 
 SITE_ID = 1  # Required for allauth
+
+SITE_URL = 'http://localhost:8000'
 
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
@@ -82,6 +87,7 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'allauth.account.middleware.AccountMiddleware',
+    'django_user_agents.middleware.UserAgentMiddleware',
     # 'debug_toolbar.middleware.DebugToolbarMiddleware',
     
 ]
